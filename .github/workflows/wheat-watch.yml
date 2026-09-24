@@ -1,5 +1,4 @@
 name: Wheat Trend Restart Watch
-# Telegram smoke-test trigger
 
 on:
   push:
@@ -39,7 +38,7 @@ jobs:
 
     env:
       WHEAT_TICKER: "ZW=F"
-      DELIVER: "true" # temporary Telegram smoke test
+      DELIVER: ${{ vars.WHEAT_DELIVER != 'false' }}
       FORCE_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.force_notify || false }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
