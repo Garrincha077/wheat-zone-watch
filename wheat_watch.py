@@ -48,6 +48,8 @@ class Checks:
     recent_pullback_compression: bool
     ema10_flattening_or_rising: bool
     ema20_flattening_or_rising: bool
+    ema10_rising: bool
+    ema20_non_falling: bool
     at_least_one_short_ema_rising: bool
     ema10_above_ema20: bool
     close_above_short_emas: bool
@@ -147,14 +149,6 @@ def evaluate(frame: pd.DataFrame) -> Evaluation:
     ema20_flat = e20_slope >= -0.03
     at_least_one_rising = e10_slope > 0 or e20_slope > 0
 
-    ready_series = (
-        setup_series
-        & (ema10_slope >= -0.05)
-        & (ema20_slope >= -0.03)
-        & ((ema10_slope > 0) | (ema20_slope > 0))
-    ).fillna(False)
-    recent_ready = bool(ready_series.tail(5).any())
-
     ema10_above = e10 > e20
     close_above_short = price > e10 and price > e20
     spread = ema10 - ema20
@@ -172,6 +166,8 @@ def evaluate(frame: pd.DataFrame) -> Evaluation:
         recent_pullback_compression=recent_pullback_compression,
         ema10_flattening_or_rising=ema10_flat,
         ema20_flattening_or_rising=ema20_flat,
+        ema10_rising=e10_slope > 0,
+        ema20_non_falling=e20_slope >= 0,
         at_least_one_short_ema_rising=at_least_one_rising,
         ema10_above_ema20=ema10_above,
         close_above_short_emas=close_above_short,
@@ -191,8 +187,13 @@ def evaluate(frame: pd.DataFrame) -> Evaluation:
         and close_above_short
         and bullish_reexpansion
     )
-    ready = trend_ok and not_extended and recent_pullback_compression and recent_ready
-    watch_closely = trend_ok and not_extended and recent_pullback_compression
+    watch_closely = trend_ok and not_extended and bool(near.iloc[-1]) and bool(compressed.iloc[-1])
+    ready = (
+        watch_closely
+        and ema10_flat
+        and ema20_flat
+        and at_least_one_rising
+    )
 
     if trigger:
         stage = 4
@@ -281,8 +282,8 @@ def trigger_requirements(checks: Checks) -> list[tuple[str, bool]]:
         ("Structure valid", checks.structure_valid),
         ("Not extended", checks.not_extended),
         ("Recent pullback + EMA compression armed", checks.recent_pullback_compression),
-        ("EMA10 rising", checks.ema10_flattening_or_rising and checks.at_least_one_short_ema_rising),
-        ("EMA20 non-falling", checks.ema20_flattening_or_rising),
+        ("EMA10 rising", checks.ema10_rising),
+        ("EMA20 non-falling", checks.ema20_non_falling),
         ("EMA10 > EMA20", checks.ema10_above_ema20),
         ("Close > EMA10 & EMA20", checks.close_above_short_emas),
         ("Bullish EMA re-expansion", checks.bullish_reexpansion),
