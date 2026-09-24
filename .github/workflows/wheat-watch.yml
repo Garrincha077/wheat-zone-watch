@@ -39,7 +39,7 @@ jobs:
 
     env:
       WHEAT_TICKER: "ZW=F"
-      DELIVER: ${{ github.event_name == 'workflow_dispatch' && inputs.deliver || vars.WHEAT_DELIVER == 'true' }}
+      DELIVER: "true" # temporary Telegram smoke test
       FORCE_NOTIFY: ${{ github.event_name == 'workflow_dispatch' && inputs.force_notify || false }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
