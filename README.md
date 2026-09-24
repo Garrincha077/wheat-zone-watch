@@ -37,16 +37,16 @@ ATR14 uses Wilder smoothing.
 
 ## Notifications
 
-Scheduled runs are dry-run unless repository variable `WHEAT_DELIVER` is set to `true`.
+Scheduled runs send Telegram stage-change alerts by default once the Telegram secrets are present.
 
-To enable Telegram delivery, add these repository secrets:
+Add these repository secrets:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 
-Then create repository variable:
+Optional repository variable:
 
-- `WHEAT_DELIVER=true`
+- `WHEAT_DELIVER=false` pauses Telegram delivery.
 
 A manual workflow run can force a current-status Telegram message even if the stage has not changed.
 
