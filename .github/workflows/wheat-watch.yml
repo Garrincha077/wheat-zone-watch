@@ -1,4 +1,5 @@
 name: Wheat Trend Restart Watch
+# Telegram smoke-test trigger
 
 on:
   push:
