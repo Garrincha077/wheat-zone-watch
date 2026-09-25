@@ -22,9 +22,14 @@ on:
         type: boolean
         default: true
   schedule:
-    # Run once per hour while wheat futures are active (Sunday-Friday).
-    - cron: "17 * * * 0-5"
-      timezone: "Europe/Zagreb"
+    # Chicago SRW Wheat (ZW) regular Globex windows, America/Chicago.
+    # CME calendar gate below handles holidays, breaks and special closes.
+    - cron: "40 19-23 * * 0-4"
+      timezone: "America/Chicago"
+    - cron: "40 0-7 * * 1-5"
+      timezone: "America/Chicago"
+    - cron: "40 8-12 * * 1-5"
+      timezone: "America/Chicago"
 
 permissions:
   contents: read
@@ -65,7 +70,61 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s tests -v
 
+      - name: Check CME wheat session
+        id: market
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime, timedelta, timezone
+          import pandas as pd
+          import pandas_market_calendars as mcal
+
+          now = datetime.now(timezone.utc)
+          cal = mcal.get_calendar("CME_Agriculture")
+          sched = cal.schedule(
+              start_date=(now - timedelta(days=1)).date(),
+              end_date=(now + timedelta(days=1)).date(),
+          )
+
+          is_open = False
+          matched = None
+          for trade_date, row in sched.iterrows():
+              market_open = row.get("market_open")
+              market_close = row.get("market_close")
+              if pd.isna(market_open) or pd.isna(market_close):
+                  continue
+              if market_open.to_pydatetime() <= now < market_close.to_pydatetime():
+                  break_start = row.get("break_start")
+                  break_end = row.get("break_end")
+                  in_break = (
+                      break_start is not None
+                      and break_end is not None
+                      and not pd.isna(break_start)
+                      and not pd.isna(break_end)
+                      and break_start.to_pydatetime() <= now < break_end.to_pydatetime()
+                  )
+                  if not in_break:
+                      is_open = True
+                      matched = {
+                          "trade_date": str(trade_date.date()),
+                          "market_open": market_open.isoformat(),
+                          "market_close": market_close.isoformat(),
+                      }
+                  break
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"open={'true' if is_open else 'false'}\n")
+
+          print({
+              "now_utc": now.isoformat(),
+              "open": is_open,
+              "session": matched,
+          })
+          PY
+
       - name: Restore watcher state
+        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.market.outputs.open == 'true') }}
         id: restore-state
         uses: actions/cache/restore@v4
         with:
@@ -75,6 +134,7 @@ jobs:
             wheat-state-
 
       - name: Evaluate wheat setup
+        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.market.outputs.open == 'true') }}
         id: watch
         shell: bash
         run: |
@@ -96,7 +156,7 @@ jobs:
           python wheat_watch.py "${args[@]}"
 
       - name: Add checklist to run summary
-        if: always()
+        if: ${{ always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.market.outputs.open == 'true')) }}
         shell: bash
         run: |
           if [ -f report.md ]; then
@@ -104,7 +164,15 @@ jobs:
           fi
 
       - name: Save state only when it changed
-        if: steps.watch.outputs.state_changed == 'true'
+        if: ${{ steps.watch.outputs.state_changed == 'true' }}
+
+      - name: Explain closed CME wheat market
+        if: ${{ github.event_name == 'schedule' && steps.market.outputs.open != 'true' }}
+        run: echo "CME Agriculture wheat session is closed; wheat evaluation skipped."
+
+      - name: Push validation only
+        if: ${{ github.event_name == 'push' }}
+        run: echo "Workflow/config validation passed; push events do not evaluate or notify wheat."
         uses: actions/cache/save@v4
         with:
           path: .state
