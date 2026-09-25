@@ -71,7 +71,6 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Check CME wheat session
-        if: ${{ github.event_name != 'push' }}
         id: market
         shell: bash
         run: |
@@ -125,17 +124,17 @@ jobs:
           PY
 
       - name: Restore watcher state
-        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.market.outputs.open == 'true') }}
+        if: ${{ github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'push') && steps.market.outputs.open == 'true') }}
         id: restore-state
         uses: actions/cache/restore@v4
         with:
           path: .state
-          key: wheat-state-${{ github.run_id }}
+          key: wheat-state-v2-${{ github.run_id }}
           restore-keys: |
-            wheat-state-
+            wheat-state-v2-
 
       - name: Evaluate wheat setup
-        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.market.outputs.open == 'true') }}
+        if: ${{ github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'push') && steps.market.outputs.open == 'true') }}
         id: watch
         shell: bash
         run: |
@@ -157,7 +156,7 @@ jobs:
           python wheat_watch.py "${args[@]}"
 
       - name: Add checklist to run summary
-        if: ${{ always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.market.outputs.open == 'true')) }}
+        if: ${{ always() && (github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'push') && steps.market.outputs.open == 'true')) }}
         shell: bash
         run: |
           if [ -f report.md ]; then
@@ -169,12 +168,12 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .state
-          key: wheat-state-${{ github.run_id }}
+          key: wheat-state-v2-${{ github.run_id }}
 
       - name: Explain closed CME wheat market
         if: ${{ github.event_name == 'schedule' && steps.market.outputs.open != 'true' }}
         run: echo "CME Agriculture wheat session is closed; wheat evaluation skipped."
 
-      - name: Push validation only
-        if: ${{ github.event_name == 'push' }}
-        run: echo "Workflow/config validation passed; push events do not evaluate or notify wheat."
+      - name: Push validation only while CME wheat market is closed
+        if: ${{ github.event_name == 'push' && steps.market.outputs.open != 'true' }}
+        run: echo "Workflow/config validation passed; CME wheat market is closed so push evaluation was skipped."
