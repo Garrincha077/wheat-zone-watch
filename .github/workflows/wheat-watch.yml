@@ -22,7 +22,9 @@ on:
         type: boolean
         default: true
   schedule:
-    - cron: "*/30 0-20 * * 0-5"
+    # Run once per hour while wheat futures are active (Sunday-Friday).
+    - cron: "17 * * * 0-5"
+      timezone: "Europe/Zagreb"
 
 permissions:
   contents: read
