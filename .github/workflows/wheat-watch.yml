@@ -71,6 +71,7 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Check CME wheat session
+        if: ${{ github.event_name != 'push' }}
         id: market
         shell: bash
         run: |
@@ -165,6 +166,10 @@ jobs:
 
       - name: Save state only when it changed
         if: ${{ steps.watch.outputs.state_changed == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .state
+          key: wheat-state-${{ github.run_id }}
 
       - name: Explain closed CME wheat market
         if: ${{ github.event_name == 'schedule' && steps.market.outputs.open != 'true' }}
@@ -173,7 +178,3 @@ jobs:
       - name: Push validation only
         if: ${{ github.event_name == 'push' }}
         run: echo "Workflow/config validation passed; push events do not evaluate or notify wheat."
-        uses: actions/cache/save@v4
-        with:
-          path: .state
-          key: wheat-state-${{ github.run_id }}
